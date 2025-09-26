@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot Interface</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .chat-wrapper {
+            flex-grow: 1;
+        }
+        
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .chat-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px 15px 0 0;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .chat-messages {
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .chat-input {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 0 0 15px 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            opacity: 0;
+            animation: fadeInUp 0.3s ease forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .user-message {
+            text-align: right;
+        }
+        
+        .user-message .message-content {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border-radius: 18px 18px 5px 18px;
+            padding: 12px 18px;
+            display: inline-block;
+            max-width: 70%;
+            box-shadow: 0 2px 10px rgba(0, 123, 255, 0.3);
+        }
+        
+        .bot-message .message-content {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            color: #495057;
+            border-radius: 18px 18px 18px 5px;
+            padding: 12px 18px;
+            display: inline-block;
+            max-width: 70%;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .model-selector {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 8px;
+        }
+        
+        .model-selector:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #007bff;
+            color: white;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        .model-selector option {
+            background: #495057;
+            color: white;
+        }
+        
+        .connection-status {
+            font-size: 0.9em;
+            padding: 5px 10px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+        
+        .status-connected {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+        
+        .status-disconnected {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 12px 18px;
+            background: #f8f9fa;
+            border-radius: 18px;
+            border: 1px solid #e9ecef;
+            max-width: 70px;
+            margin-bottom: 15px;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #6c757d;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .weather-card {
+            background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
+            border-radius: 15px;
+            padding: 20px;
+            color: #fff;
+            max-width: 250px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .weather-header {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .weather-icon img {
+            width: 80px;
+            height: 80px;
+        }
+
+        .weather-temp {
+            font-size: 2.8em;
+            font-weight: bold;
+        }
+
+        .weather-desc {
+            font-size: 1.2em;
+            text-transform: capitalize;
+        }
+
+        .weather-module {
+            width: 320px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: fit-content;
+        }
+
+        #weatherResult .weather-card {
+            margin: 0 auto;
+        }
+
+        .finance-module {
+            width: 320px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: fit-content;
+        }
+
+        .finance-card {
+            background: linear-gradient(135deg, #2E8B57 0%, #228B22 100%);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            margin-bottom: 10px;
+        }
+
+        .finance-header {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .finance-price {
+            font-size: 2em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .finance-change {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .finance-change.positive {
+            color: #90EE90;
+        }
+
+        .finance-change.negative {
+            color: #FFB6C1;
+        }
+
+        .finance-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .finance-detail-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .market-overview {
+            background: linear-gradient(135deg, #4169E1 0%, #1E90FF 100%);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .market-index {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .market-index:last-child {
+            border-bottom: none;
+        }
+
+        .index-name {
+            font-weight: bold;
+        }
+
+        .index-price {
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-layout">
+            <div class="chat-wrapper">
+                <div class="chat-container">
+                    <div class="chat-header">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h3 class="text-white mb-0">
+                            <i class="fas fa-robot me-2"></i>
+                            AI Chatbot
+                        </h3>
+                        <div class="mt-2">
+                            <span id="connectionStatus" class="connection-status status-disconnected">
+                                <i class="fas fa-circle me-1"></i>
+                                Disconnected
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center justify-content-md-end flex-wrap gap-3">
+                            <div class="d-flex align-items-center">
+                                <label for="modelSelect" class="text-white me-2 mb-0">Model:</label>
+                                <select id="modelSelect" class="form-select model-selector" style="max-width: 150px;">
+                                    <option value="llama3.2">Llama 3.2</option>
+                                    <option value="falcon">Falcon</option>
+                                    <option value="mistral">Mistral</option>
+                                    <option value="codellama">CodeLlama</option>
+                                    <option value="phi">Phi</option>
+                                    <option value="neural-chat">Neural Chat</option>
+                                </select>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <label for="webSearchToggle" class="text-white me-2 mb-0">
+                                    <i class="fas fa-search me-1"></i>Web Search:
+                                </label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="webSearchToggle">
+                                    <label class="form-check-label text-white" for="webSearchToggle" id="webSearchLabel">OFF</label>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <label for="financeToggle" class="text-white me-2 mb-0">
+                                    <i class="fas fa-chart-line me-1"></i>Finance:
+                                </label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="financeToggle">
+                                    <label class="form-check-label text-white" for="financeToggle" id="financeLabel">OFF</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <div class="message-content">
+                        <i class="fas fa-robot me-2 text-primary"></i>
+                        Hello! I'm your AI assistant. Choose a model above and start chatting!
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <form id="messageForm">
+                    <div class="input-group">
+                        <input type="text" id="messageInput" class="form-control form-control-lg" 
+                               placeholder="Type your message..." autocomplete="off" disabled>
+                        <button type="submit" id="sendButton" class="btn btn-primary btn-lg" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="weather-module">
+                <h4 class="text-white text-center mb-3"><i class="fas fa-cloud-sun me-2"></i>Weather Check</h4>
+                <form id="weatherForm">
+                    <div class="input-group mb-3">
+                        <input type="text" id="weatherCityInput" class="form-control" placeholder="Enter city name..." required>
+                        <button class="btn btn-primary" type="submit" id="weatherSearchBtn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+                <div id="weatherResult" class="mt-3"></div>
+            </div>
+
+            <div class="finance-module">
+                <h4 class="text-white text-center mb-3"><i class="fas fa-chart-line me-2"></i>Finance Tracker</h4>
+                <form id="financeForm">
+                    <div class="input-group mb-3">
+                        <input type="text" id="financeSymbolInput" class="form-control" placeholder="Enter stock symbol (e.g., AAPL)..." required>
+                        <button class="btn btn-success" type="submit" id="financeSearchBtn">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                    </div>
+                </form>
+                <div id="financeResult" class="mt-3"></div>
+                <div class="mt-3">
+                    <button class="btn btn-outline-light btn-sm w-100" id="marketOverviewBtn">
+                        <i class="fas fa-globe me-1"></i>Market Overview
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-outline-success btn-sm w-100" id="showChartBtn">
+                        <i class="fas fa-chart-line me-1"></i>Show Chart
+                    </button>
+                </div>
+                <div class="mt-3" id="chartContainer" style="display: none;">
+                    <canvas id="financeChart" width="280" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+    <script>
+        class ChatbotInterface {
+            constructor() {
+                this.socket = null;
+                this.connected = false;
+                this.currentModel = 'llama3.2';
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.connectSocket();
+            }
+            
+            initializeElements() {
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.chatMessages = document.getElementById('chatMessages');
+                this.modelSelect = document.getElementById('modelSelect');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.messageForm = document.getElementById('messageForm');
+                this.typingIndicator = this.createTypingIndicator();
+                this.weatherForm = document.getElementById('weatherForm');
+                this.weatherCityInput = document.getElementById('weatherCityInput');
+                this.weatherResult = document.getElementById('weatherResult');
+                this.webSearchToggle = document.getElementById('webSearchToggle');
+                this.webSearchLabel = document.getElementById('webSearchLabel');
+                this.financeToggle = document.getElementById('financeToggle');
+                this.financeLabel = document.getElementById('financeLabel');
+                this.financeForm = document.getElementById('financeForm');
+                this.financeSymbolInput = document.getElementById('financeSymbolInput');
+                this.financeResult = document.getElementById('financeResult');
+                this.marketOverviewBtn = document.getElementById('marketOverviewBtn');
+                this.showChartBtn = document.getElementById('showChartBtn');
+                this.chartContainer = document.getElementById('chartContainer');
+                this.financeChart = null;
+                this.currentSymbol = null;
+            }
+            
+            createTypingIndicator() {
+                const indicator = document.createElement('div');
+                indicator.className = 'typing-indicator';
+                indicator.innerHTML = `
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                `;
+                this.chatMessages.appendChild(indicator);
+                return indicator;
+            }
+            
+            bindEvents() {
+                this.messageForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.sendMessage();
+                });
+                
+                this.modelSelect.addEventListener('change', (e) => {
+                    this.currentModel = e.target.value;
+                    this.socket.emit('modelChange', this.currentModel);
+                    this.addMessage('system', `Model changed to ${this.currentModel}`);
+                });
+                
+                this.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                this.weatherForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const city = this.weatherCityInput.value.trim();
+                    if (city) {
+                        this.getStandaloneWeather(city);
+                    }
+                });
+
+                this.webSearchToggle.addEventListener('change', (e) => {
+                    const isEnabled = e.target.checked;
+                    this.webSearchLabel.textContent = isEnabled ? 'ON' : 'OFF';
+                    this.addMessage('system', `Web search ${isEnabled ? 'enabled' : 'disabled'}`);
+                });
+
+                this.financeToggle.addEventListener('change', (e) => {
+                    const isEnabled = e.target.checked;
+                    this.financeLabel.textContent = isEnabled ? 'ON' : 'OFF';
+                    this.addMessage('system', `Finance tracking ${isEnabled ? 'enabled' : 'disabled'}`);
+                });
+
+                this.financeForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const symbol = this.financeSymbolInput.value.trim().toUpperCase();
+                    if (symbol) {
+                        this.getStandaloneFinance(symbol);
+                    }
+                });
+
+                this.marketOverviewBtn.addEventListener('click', () => {
+                    this.getMarketOverview();
+                });
+
+                this.showChartBtn.addEventListener('click', () => {
+                    if (this.currentSymbol) {
+                        this.showFinanceChart(this.currentSymbol);
+                    } else {
+                        alert('Please search for a stock symbol first!');
+                    }
+                });
+            }
+            
+            connectSocket() {
+                this.socket = io('http://localhost:8080');
+                
+                this.socket.on('connect', () => {
+                    this.connected = true;
+                    this.updateConnectionStatus(true);
+                    this.messageInput.disabled = false;
+                    this.sendButton.disabled = false;
+                    
+                    // Send initial model selection
+                    this.socket.emit('modelChange', this.currentModel);
+                });
+                
+                this.socket.on('disconnect', () => {
+                    this.connected = false;
+                    this.updateConnectionStatus(false);
+                    this.messageInput.disabled = true;
+                    this.sendButton.disabled = true;
+                });
+                
+                this.socket.on('chatanswer', (response) => {
+                    this.hideTypingIndicator();
+                    if (response && response.type === 'weather') {
+                        this.addWeatherMessage(response.text, response.data);
+                    } else if (response && response.type === 'finance') {
+                        this.addFinanceMessage(response.text, response.data);
+                    } else {
+                        this.addMessage('bot', response);
+                    }
+                });
+                
+                this.socket.on('error', (error) => {
+                    this.hideTypingIndicator();
+                    this.addMessage('system', 'Error: ' + error);
+                });
+            }
+
+
+            async getStandaloneFinance(symbol) {
+                this.financeResult.innerHTML = '<div class="text-white">Loading...</div>';
+                try {
+                    const response = await fetch(`/api/finance/${symbol}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        this.financeResult.innerHTML = `<div class="text-danger">Error: ${data.message}</div>`;
+                        this.currentSymbol = null;
+                    } else {
+                        this.financeResult.innerHTML = this.createFinanceCardHTML(data);
+                        this.currentSymbol = symbol.toUpperCase();
+                    }
+                } catch (error) {
+                    this.financeResult.innerHTML = '<div class="text-danger">Failed to fetch finance data.</div>';
+                    this.currentSymbol = null;
+                }
+            }
+
+            async getMarketOverview() {
+                this.financeResult.innerHTML = '<div class="text-white">Loading market data...</div>';
+                try {
+                    const response = await fetch('/api/finance/market/overview');
+                    const data = await response.json();
+
+                    if (data.error) {
+                        this.financeResult.innerHTML = `<div class="text-danger">Error: ${data.message}</div>`;
+                    } else {
+                        this.financeResult.innerHTML = this.createMarketOverviewHTML(data);
+                    }
+                } catch (error) {
+                    this.financeResult.innerHTML = '<div class="text-danger">Failed to fetch market data.</div>';
+                }
+            }
+
+            createFinanceCardHTML(data) {
+                const changeClass = data.change >= 0 ? 'positive' : 'negative';
+                const changeIcon = data.change >= 0 ? '📈' : '📉';
+                
+                return `
+                <div class='finance-card'>
+                    <div class="finance-header">${data.symbol}</div>
+                    <div class="finance-price">$${data.price.toFixed(2)}</div>
+                    <div class="finance-change ${changeClass}">
+                        ${changeIcon} ${data.change >= 0 ? '+' : ''}${data.change.toFixed(2)} (${data.changePercent}%)
+                    </div>
+                    <div class="finance-details">
+                        <div class="finance-detail-item">
+                            <div>Open</div>
+                            <div>$${data.open.toFixed(2)}</div>
+                        </div>
+                        <div class="finance-detail-item">
+                            <div>High</div>
+                            <div>$${data.high.toFixed(2)}</div>
+                        </div>
+                        <div class="finance-detail-item">
+                            <div>Low</div>
+                            <div>$${data.low.toFixed(2)}</div>
+                        </div>
+                        <div class="finance-detail-item">
+                            <div>Volume</div>
+                            <div>${(data.volume / 1000000).toFixed(1)}M</div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            createMarketOverviewHTML(data) {
+                let html = '<div class="market-overview"><h6>Market Overview</h6>';
+                
+                data.indices.forEach(index => {
+                    const changeClass = index.change >= 0 ? 'positive' : 'negative';
+                    const changeIcon = index.change >= 0 ? '📈' : '📉';
+                    
+                    html += `
+                    <div class="market-index">
+                        <div class="index-name">${index.name}</div>
+                        <div>
+                            <div class="index-price">$${index.price.toFixed(2)}</div>
+                            <div class="finance-change ${changeClass}">
+                                ${changeIcon} ${index.change >= 0 ? '+' : ''}${index.changePercent}%
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                
+                html += '</div>';
+                return html;
+            }
+
+            addFinanceMessage(text, financeData) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message bot-message';
+
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.innerHTML = `<i class="fas fa-robot me-2 text-primary"></i>${text}`;
+                
+                const financeCardHTML = this.createFinanceCardHTML(financeData);
+                const cardWrapper = document.createElement('div');
+                cardWrapper.innerHTML = financeCardHTML;
+                messageContent.appendChild(cardWrapper.firstChild);
+
+                messageDiv.appendChild(messageContent);
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            async showFinanceChart(symbol) {
+                try {
+                    // Show the chart container
+                    this.chartContainer.style.display = 'block';
+                    
+                    // Generate sample data for demonstration (in real app, fetch from API)
+                    const chartData = this.generateSampleChartData(symbol);
+                    
+                    // Destroy existing chart if it exists
+                    if (this.financeChart) {
+                        this.financeChart.destroy();
+                    }
+                    
+                    // Create new chart
+                    const ctx = document.getElementById('financeChart').getContext('2d');
+                    this.financeChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: chartData.labels,
+                            datasets: [{
+                                label: `${symbol} Price`,
+                                data: chartData.prices,
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    },
+                                    ticks: {
+                                        color: 'white'
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    },
+                                    ticks: {
+                                        color: 'white'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: 'white'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error creating chart:', error);
+                    alert('Failed to create chart');
+                }
+            }
+
+            generateSampleChartData(symbol) {
+                // Generate 30 days of sample data
+                const labels = [];
+                const prices = [];
+                const basePrice = 100 + Math.random() * 200; // Random base price
+                
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    
+                    // Generate realistic price movement
+                    const variation = (Math.random() - 0.5) * 10; // ±5 price variation
+                    const price = Math.max(basePrice + variation + (Math.random() - 0.5) * 20, 10);
+                    prices.push(price.toFixed(2));
+                }
+                
+                return { labels, prices };
+            }
+
+
+            
+
+
+
+            updateConnectionStatus(connected) {
+                if (connected) {
+                    this.connectionStatus.className = 'connection-status status-connected';
+                    this.connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i>Connected';
+                } else {
+                    this.connectionStatus.className = 'connection-status status-disconnected';
+                    this.connectionStatus.innerHTML = '<i class="fas fa-circle me-1"></i>Disconnected';
+                }
+            }
+            
+            sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message || !this.connected) return;
+                
+                this.addMessage('user', message);
+                const messageData = {
+                    message: message,
+                    options: {
+                        webSearchEnabled: this.webSearchToggle.checked,
+                        financeEnabled: this.financeToggle.checked
+                    }
+                };
+                this.socket.emit('chatmessage', messageData);
+                this.messageInput.value = '';
+                this.showTypingIndicator();
+            }
+            
+            addMessage(type, content) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}-message`;
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                
+                if (type === 'bot') {
+                    messageContent.innerHTML = `<i class="fas fa-robot me-2 text-primary"></i>${content}`;
+                } else if (type === 'user') {
+                    messageContent.innerHTML = content;
+                } else if (type === 'system') {
+                    messageContent.innerHTML = `<i class="fas fa-info-circle me-2 text-info"></i>${content}`;
+                    messageContent.className += ' text-info';
+                }
+                
+                messageDiv.appendChild(messageContent);
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+            
+            addWeatherMessage(text, weatherData) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message bot-message';
+
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.innerHTML = `<i class="fas fa-robot me-2 text-primary"></i>${text}`;
+                
+                // Create and append the weather card to the message content
+                const weatherCardHTML = this.createWeatherCardHTML(weatherData);
+                const cardWrapper = document.createElement('div');
+                cardWrapper.innerHTML = weatherCardHTML;
+                messageContent.appendChild(cardWrapper.firstChild);
+
+                messageDiv.appendChild(messageContent);
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            async getStandaloneWeather(city) {
+                this.weatherResult.innerHTML = '<div class="text-white">Loading...</div>';
+                try {
+                    const response = await fetch(`/api/weather/${city}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        this.weatherResult.innerHTML = `<div class="text-danger">Error: ${data.message}</div>`;
+                    } else {
+                        this.weatherResult.innerHTML = this.createWeatherCardHTML(data);
+                    }
+                } catch (error) {
+                    this.weatherResult.innerHTML = '<div class="text-danger">Failed to fetch weather.</div>';
+                }
+            }
+
+            createWeatherCardHTML(weatherData) {
+                return `
+                <div class='weather-card mt-2'>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="weather-header">${weatherData.city}</div>
+                            <div class="weather-desc">${weatherData.description}</div>
+                        </div>
+                        <div class="weather-icon">
+                            <img src="http://openweathermap.org/img/wn/${weatherData.icon}@2x.png" alt="Weather icon">
+                        </div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <span class="weather-temp">${Math.round(weatherData.temperature)}°C</span>
+                    </div>
+                </div>`;
+            }
+            
+            showTypingIndicator() {
+                this.typingIndicator.style.display = 'block';
+                this.scrollToBottom();
+            }
+            
+            hideTypingIndicator() {
+                this.typingIndicator.style.display = 'none';
+            }
+            
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                }, 100);
+            }
+        }
+        
+        // Initialize the chatbot when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new ChatbotInterface();
+        });
+    </script>
+</body>
+</html>
