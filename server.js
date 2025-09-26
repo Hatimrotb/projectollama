@@ -4,7 +4,7 @@ const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
 const chatter = require('./MyChatterBot');
-const GetMeteo = require('./getmeteo');
+const GetMeteo = require('./GetMeteo');
 const WebSearch = require('./WebSearch');
 const FinanceService = require('./FinanceService');
 
